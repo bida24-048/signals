@@ -108,7 +108,7 @@ setInterval(()=>{
     new Date().toLocaleString();
 },1000);
 
-/* SOUND */
+/* SIGNAL SOUND */
 function playSound(type){
   let ctx = new (window.AudioContext || window.webkitAudioContext)();
   let osc = ctx.createOscillator();
@@ -123,10 +123,25 @@ function playSound(type){
   setTimeout(()=>osc.stop(),150);
 }
 
+/* POWER SOUND */
+function playPowerSound(type){
+  let ctx = new (window.AudioContext || window.webkitAudioContext)();
+  let osc = ctx.createOscillator();
+
+  if(type==="on") osc.frequency.value = 600;
+  if(type==="off") osc.frequency.value = 150;
+
+  osc.connect(ctx.destination);
+  osc.start();
+
+  setTimeout(()=>osc.stop(),200);
+}
+
 /* LOCK */
 function unlock(){
   let p = document.getElementById("passcode");
   if(p.value === PASS){
+    playPowerSound("on");
     document.getElementById("lockscreen").style.display = "none";
     createRow();
   } else {
@@ -167,9 +182,16 @@ function createRow(){
     }
   });
 
-  /* SAVE ON ENTER */
+  /* ENTER ON SPIKE */
   spikeBox.addEventListener("keydown", e=>{
-    if(e.key==="Enter") saveRow();
+    if(e.key==="Enter"){
+      saveRow();
+
+      setTimeout(()=>{
+        let nextTime = document.getElementById(`time_${index}`);
+        if(nextTime) nextTime.focus();
+      },50);
+    }
   });
 }
 
@@ -262,6 +284,8 @@ function generate(){
 
 /* RESET */
 function resetSession(){
+
+  playPowerSound("off");
 
   data=[];
   index=0;
