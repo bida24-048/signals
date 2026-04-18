@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>Signal Simulator</title>
-  <h6>LGM</h6>
+  <h6>Made by LGM</h6>
 
   <style>
     body {
@@ -24,11 +24,6 @@
       z-index: 9999;
     }
 
-    #error {
-      color: red;
-      margin-top: 10px;
-    }
-
     .row {
       display: flex;
       justify-content: center;
@@ -40,7 +35,6 @@
       padding: 8px;
       width: 130px;
       text-align: center;
-      font-size: 14px;
     }
 
     button {
@@ -49,15 +43,33 @@
       cursor: pointer;
     }
 
-    .low { color: #00bfff; }
-    .med { color: #a020f0; }
-    .high { color: #ff4da6; }
+    #circle {
+      width:150px;
+      height:150px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      margin:20px auto;
+      font-size:22px;
+      border:3px solid white;
+      animation: pulse 1.5s infinite;
+    }
+
+    .low { color:#00bfff; box-shadow:0 0 15px #00bfff; }
+    .med { color:#a020f0; box-shadow:0 0 20px #a020f0; }
+    .high { color:#ff4da6; box-shadow:0 0 25px #ff4da6; }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
   </style>
 </head>
 
 <body>
 
-<!-- LOCK -->
 <div id="lockscreen">
   <h2>🔐 Enter Passcode</h2>
   <input type="password" id="passcode">
@@ -66,16 +78,17 @@
 </div>
 
 <h2>📊 Signal Row Editor</h2>
-
 <h4 id="clock"></h4>
 
 <div id="table"></div>
 
 <button id="genBtn" onclick="generate()" disabled>Generate</button>
-
 <button onclick="resetSession()">🔄 Refresh Session</button>
 
-<div id="result"></div>
+<div id="signalView" style="display:none;">
+  <div id="circle">--</div>
+  <button onclick="generate()">Next Signal</button>
+</div>
 
 <script>
 
@@ -87,44 +100,43 @@ let index = 0;
 let predictions = [];
 let predIndex = 0;
 
-let sessionStart = Date.now();
-
 const MIN_SIGNALS = 20;
 
-/* ---------------- CLOCK ---------------- */
-function updateClock(){
-  const now = new Date();
-  document.getElementById("clock").innerText =
-    now.toLocaleString();
-}
-setInterval(updateClock, 1000);
-
-/* ---------------- AUTO RESET (30 min while open) ---------------- */
+/* CLOCK */
 setInterval(()=>{
-  if(Date.now() - sessionStart > 30 * 60 * 1000){
-    resetSession();
-    alert("Session expired (30 minutes). Please enter new data.");
-  }
-}, 60000);
+  document.getElementById("clock").innerText =
+    new Date().toLocaleString();
+},1000);
 
-/* ---------------- LOCK ---------------- */
+/* SOUND */
+function playSound(type){
+  let ctx = new (window.AudioContext || window.webkitAudioContext)();
+  let osc = ctx.createOscillator();
+
+  if(type==="low") osc.frequency.value = 200;
+  if(type==="med") osc.frequency.value = 400;
+  if(type==="high") osc.frequency.value = 700;
+
+  osc.connect(ctx.destination);
+  osc.start();
+
+  setTimeout(()=>osc.stop(),150);
+}
+
+/* LOCK */
 function unlock(){
   let p = document.getElementById("passcode");
-
   if(p.value === PASS){
     document.getElementById("lockscreen").style.display = "none";
     createRow();
-    updateClock();
-    sessionStart = Date.now();
   } else {
     document.getElementById("error").innerText = "Wrong passcode";
     p.value = "";
   }
 }
 
-/* ---------------- CREATE ROW ---------------- */
+/* ROW */
 function createRow(){
-
   let table = document.getElementById("table");
 
   let row = document.createElement("div");
@@ -137,136 +149,128 @@ function createRow(){
 
   table.appendChild(row);
 
-  let timeBox = document.getElementById(`time_${index}`);
   let spikeBox = document.getElementById(`spike_${index}`);
 
-  timeBox.addEventListener("input", function(){
-    let v = this.value.replace(/\D/g,"");
-    if(v.length >= 3){
-      this.value = v.slice(0,2) + ":" + v.slice(2,4);
-    } else {
-      this.value = v;
-    }
-  });
-
-  timeBox.addEventListener("keydown", e=>{
-    if(e.key === "Enter") spikeBox.focus();
-  });
-
   spikeBox.addEventListener("keydown", e=>{
-    if(e.key === "Enter") saveRow();
+    if(e.key==="Enter") saveRow();
   });
-
-  timeBox.focus();
 }
 
-/* ---------------- SAVE ---------------- */
+/* SAVE */
 function saveRow(){
-
   let t = document.getElementById(`time_${index}`).value;
   let s = parseFloat(document.getElementById(`spike_${index}`).value);
 
   if(!t || isNaN(s)){
-    alert("Enter valid time and spike");
+    alert("Invalid input");
     return;
   }
 
-  data[index] = { time: t, spike: s };
+  data[index] = {time:t, spike:s};
   index++;
 
-  if(index < 10){
+  if(index<10){
     createRow();
   } else {
     document.getElementById("genBtn").disabled = false;
   }
 }
 
-/* ---------------- RNG ---------------- */
-function seededRandom(seed){
-  let x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-}
-
-function classify(v){
-  if(v < 2) return "low";
-  if(v < 5) return "med";
-  return "high";
-}
-
-/* ---------------- BUILD SIGNALS ---------------- */
+/* SMART LOGIC */
 function buildPredictions(){
 
-  let values = data.map(d => d.spike);
+  let values = data.map(d=>d.spike);
 
   let avg = values.reduce((a,b)=>a+b,0)/values.length;
-  let lastAvg = values.slice(-3).reduce((a,b)=>a+b,0)/Math.min(3,values.length);
 
-  let seed = avg * 100;
+  // trend detection
+  let trend = values[values.length-1] - values[0];
+
+  // volatility
+  let vol = values.reduce((a,b)=>a+Math.abs(b-avg),0)/values.length;
 
   predictions = [];
 
-  let totalSignals = Math.floor(MIN_SIGNALS + Math.random()*10);
+  let base = avg;
 
-  for(let i=1;i<=totalSignals;i++){
+  for(let i=0;i<MIN_SIGNALS;i++){
 
-    let r = seededRandom(seed + i);
-    let val;
+    // smoother progression
+    let drift = trend * 0.05;
 
-    if(lastAvg > avg && r < 0.35){
-      val = 5 + r * 25;
-    }
-    else if(lastAvg < avg && r < 0.75){
-      val = 1 + r * 2.5;
-    }
-    else{
-      val = 2 + r * 6;
-    }
+    // controlled randomness
+    let noise = (Math.random()-0.5) * vol;
+
+    base = base + drift + noise;
+
+    // clamp ranges
+    if(base < 1) base = 1 + Math.random();
+    if(base > 10) base = 8 + Math.random()*5;
+
+    let val = base;
+
+    let cls = val<2?"low":val<5?"med":"high";
 
     predictions.push({
       value: val.toFixed(2),
-      class: classify(val)
+      class: cls
     });
   }
 
   predIndex = 0;
 }
 
-/* ---------------- GENERATE ONE BY ONE ---------------- */
+/* GENERATE */
 function generate(){
 
-  if(predictions.length === 0){
+  if(predictions.length===0){
     buildPredictions();
+
+    document.getElementById("table").style.display="none";
+    document.getElementById("genBtn").style.display="none";
+    document.getElementById("signalView").style.display="block";
   }
 
-  if(predIndex >= predictions.length){
-    document.getElementById("result").innerHTML =
-      "<h3>⚠️ All signals completed. Click Refresh Session.</h3>";
+  if(predIndex>=predictions.length){
+
+    document.getElementById("circle").innerHTML="LIMIT";
+
+    setTimeout(()=>{
+      alert("Signals reached the limit");
+      resetSession();
+    },2000);
+
     return;
   }
 
   let p = predictions[predIndex];
 
-  document.getElementById("result").innerHTML =
-    `<h3>📡 Signal ${predIndex + 1}</h3>
-     <p class="${p.class}">
-       NEXT → <b>${p.value}x</b>
-     </p>`;
+  let circle = document.getElementById("circle");
+
+  circle.className = p.class;
+  circle.innerHTML = p.value+"x";
+
+  playSound(p.class);
 
   predIndex++;
 }
 
-/* ---------------- RESET ---------------- */
+/* RESET */
 function resetSession(){
 
-  data = [];
-  index = 0;
+  data=[];
+  index=0;
+  predictions=[];
+  predIndex=0;
 
-  predictions = [];
-  predIndex = 0;
+  document.getElementById("table").innerHTML="";
+  document.getElementById("genBtn").disabled=true;
 
-  document.getElementById("table").innerHTML = "";
-  document.getElementById("genBtn").disabled = true;
-  document.getElementById("result").innerHTML = "";
+  document.getElementById("table").style.display="block";
+  document.getElementById("genBtn").style.display="inline-block";
+  document.getElementById("signalView").style.display="none";
+
+  document.getElementById("circle").innerHTML="--";
 
   createRow();
 }
