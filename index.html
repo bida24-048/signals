@@ -2,7 +2,6 @@
 <html>
 <head>
   <title>Signal Simulator</title>
-  <h6>Made by LGM</h6>
 
   <style>
     body {
@@ -27,14 +26,14 @@
     .row {
       display: flex;
       justify-content: center;
-      gap: 10px;
       margin: 6px 0;
     }
 
     input {
-      padding: 8px;
-      width: 130px;
+      padding: 10px;
+      width: 160px;
       text-align: center;
+      font-size: 16px;
     }
 
     button {
@@ -77,13 +76,12 @@
   <div id="error"></div>
 </div>
 
-<h2>📊 Signal Row Editor</h2>
-<h4 id="clock"></h4>
+<h2>📊 Enter 20 Spikes</h2>
 
 <div id="table"></div>
 
 <button id="genBtn" onclick="generate()" disabled>Generate</button>
-<button onclick="resetSession()">🔄 Refresh Session</button>
+<button onclick="resetSession()">🔄 Reset</button>
 
 <div id="signalView" style="display:none;">
   <div id="circle">--</div>
@@ -102,13 +100,7 @@ let predIndex = 0;
 
 const MIN_SIGNALS = 20;
 
-/* CLOCK */
-setInterval(()=>{
-  document.getElementById("clock").innerText =
-    new Date().toLocaleString();
-},1000);
-
-/* SIGNAL SOUND */
+/* SOUND */
 function playSound(type){
   let ctx = new (window.AudioContext || window.webkitAudioContext)();
   let osc = ctx.createOscillator();
@@ -119,7 +111,6 @@ function playSound(type){
 
   osc.connect(ctx.destination);
   osc.start();
-
   setTimeout(()=>osc.stop(),150);
 }
 
@@ -133,7 +124,6 @@ function playPowerSound(type){
 
   osc.connect(ctx.destination);
   osc.start();
-
   setTimeout(()=>osc.stop(),200);
 }
 
@@ -150,7 +140,7 @@ function unlock(){
   }
 }
 
-/* ROW */
+/* CREATE ROW */
 function createRow(){
   let table = document.getElementById("table");
 
@@ -158,71 +148,51 @@ function createRow(){
   row.className = "row";
 
   row.innerHTML = `
-    <input id="time_${index}" placeholder="HH:MM" maxlength="5">
-    <input id="spike_${index}" placeholder="Spike">
+    <input id="spike_${index}" placeholder="Enter Spike">
   `;
 
   table.appendChild(row);
 
-  let timeBox = document.getElementById(`time_${index}`);
   let spikeBox = document.getElementById(`spike_${index}`);
+  spikeBox.focus();
 
-  /* AUTO FORMAT TIME */
-  timeBox.addEventListener("input", ()=>{
-    let v = timeBox.value.replace(/[^0-9]/g, "");
-
-    if(v.length >= 3){
-      v = v.slice(0,2) + ":" + v.slice(2,4);
-    }
-
-    timeBox.value = v;
-
-    if(v.length === 5){
-      spikeBox.focus();
-    }
-  });
-
-  /* ENTER ON SPIKE */
   spikeBox.addEventListener("keydown", e=>{
-    if(e.key==="Enter"){
+    if(e.key === "Enter"){
       saveRow();
 
       setTimeout(()=>{
-        let nextTime = document.getElementById(`time_${index}`);
-        if(nextTime) nextTime.focus();
-      },50);
+        let next = document.getElementById(`spike_${index}`);
+        if(next) next.focus();
+      }, 50);
     }
   });
 }
 
 /* SAVE */
 function saveRow(){
-  let t = document.getElementById(`time_${index}`).value;
   let s = parseFloat(document.getElementById(`spike_${index}`).value);
 
-  if(!t || isNaN(s)){
-    alert("Invalid input");
+  if(isNaN(s)){
+    alert("Invalid spike");
     return;
   }
 
-  data[index] = {time:t, spike:s};
+  data[index] = s;
   index++;
 
-  if(index<10){
+  if(index < 20){
     createRow();
   } else {
     document.getElementById("genBtn").disabled = false;
   }
 }
 
-/* SMART LOGIC */
+/* BUILD PREDICTIONS */
 function buildPredictions(){
 
-  let values = data.map(d=>d.spike);
-
-  let avg = values.reduce((a,b)=>a+b,0)/values.length;
-  let trend = values[values.length-1] - values[0];
-  let vol = values.reduce((a,b)=>a+Math.abs(b-avg),0)/values.length;
+  let avg = data.reduce((a,b)=>a+b,0)/data.length;
+  let trend = data[data.length-1] - data[0];
+  let vol = data.reduce((a,b)=>a+Math.abs(b-avg),0)/data.length;
 
   predictions = [];
   let base = avg;
@@ -234,10 +204,13 @@ function buildPredictions(){
     base = base + drift + noise;
 
     if(base < 1) base = 1 + Math.random();
-    if(base > 10) base = 8 + Math.random()*5;
 
     let val = base;
-    let cls = val<2?"low":val<5?"med":"high";
+    let cls;
+
+    if(val < 2) cls = "low";
+    else if(val < 10) cls = "med";
+    else cls = "high";
 
     predictions.push({
       value: val.toFixed(2),
@@ -251,22 +224,21 @@ function buildPredictions(){
 /* GENERATE */
 function generate(){
 
-  if(predictions.length===0){
+  if(predictions.length === 0){
     buildPredictions();
 
-    document.getElementById("table").style.display="none";
-    document.getElementById("genBtn").style.display="none";
-    document.getElementById("signalView").style.display="block";
+    document.getElementById("table").style.display = "none";
+    document.getElementById("genBtn").style.display = "none";
+    document.getElementById("signalView").style.display = "block";
   }
 
-  if(predIndex>=predictions.length){
-
-    document.getElementById("circle").innerHTML="LIMIT";
+  if(predIndex >= predictions.length){
+    document.getElementById("circle").innerHTML = "LIMIT";
 
     setTimeout(()=>{
-      alert("Signals reached the limit");
+      alert("Signals completed");
       resetSession();
-    },2000);
+    }, 1500);
 
     return;
   }
@@ -275,7 +247,7 @@ function generate(){
   let circle = document.getElementById("circle");
 
   circle.className = p.class;
-  circle.innerHTML = p.value+"x";
+  circle.innerHTML = p.value + "x";
 
   playSound(p.class);
 
@@ -287,19 +259,19 @@ function resetSession(){
 
   playPowerSound("off");
 
-  data=[];
-  index=0;
-  predictions=[];
-  predIndex=0;
+  data = [];
+  index = 0;
+  predictions = [];
+  predIndex = 0;
 
-  document.getElementById("table").innerHTML="";
-  document.getElementById("genBtn").disabled=true;
+  document.getElementById("table").innerHTML = "";
+  document.getElementById("genBtn").disabled = true;
 
-  document.getElementById("table").style.display="block";
-  document.getElementById("genBtn").style.display="inline-block";
-  document.getElementById("signalView").style.display="none";
+  document.getElementById("table").style.display = "block";
+  document.getElementById("genBtn").style.display = "inline-block";
+  document.getElementById("signalView").style.display = "none";
 
-  document.getElementById("circle").innerHTML="--";
+  document.getElementById("circle").innerHTML = "--";
 
   createRow();
 }
