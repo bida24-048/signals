@@ -78,6 +78,8 @@
 
 <h2>📊 Enter 20 Spikes</h2>
 
+<button onclick="toggleSound()" id="soundBtn">🔊 Sound: ON</button>
+
 <div id="table"></div>
 
 <button id="genBtn" onclick="generate()" disabled>Generate</button>
@@ -100,38 +102,42 @@ let predIndex = 0;
 
 const MIN_SIGNALS = 20;
 
-/* SOUND */
+let soundEnabled = true;
+
+/* TOGGLE SOUND */
+function toggleSound(){
+  soundEnabled = !soundEnabled;
+  document.getElementById("soundBtn").innerText =
+    soundEnabled ? "🔊 Sound: ON" : "🔇 Sound: OFF";
+}
+
+/* SIGNAL SOUND */
 function playSound(type){
+
+  if(!soundEnabled) return;
+
   let ctx = new (window.AudioContext || window.webkitAudioContext)();
   let osc = ctx.createOscillator();
+  let gain = ctx.createGain();
 
   if(type==="low") osc.frequency.value = 200;
   if(type==="med") osc.frequency.value = 400;
   if(type==="high") osc.frequency.value = 700;
 
-  osc.connect(ctx.destination);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  gain.gain.setValueAtTime(0.15, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+
   osc.start();
-  setTimeout(()=>osc.stop(),150);
-}
-
-/* POWER SOUND */
-function playPowerSound(type){
-  let ctx = new (window.AudioContext || window.webkitAudioContext)();
-  let osc = ctx.createOscillator();
-
-  if(type==="on") osc.frequency.value = 600;
-  if(type==="off") osc.frequency.value = 150;
-
-  osc.connect(ctx.destination);
-  osc.start();
-  setTimeout(()=>osc.stop(),200);
+  osc.stop(ctx.currentTime + 0.12);
 }
 
 /* LOCK */
 function unlock(){
   let p = document.getElementById("passcode");
   if(p.value === PASS){
-    playPowerSound("on");
     document.getElementById("lockscreen").style.display = "none";
     createRow();
   } else {
@@ -142,6 +148,7 @@ function unlock(){
 
 /* CREATE ROW */
 function createRow(){
+
   let table = document.getElementById("table");
 
   let row = document.createElement("div");
@@ -170,6 +177,7 @@ function createRow(){
 
 /* SAVE */
 function saveRow(){
+
   let s = parseFloat(document.getElementById(`spike_${index}`).value);
 
   if(isNaN(s)){
@@ -187,7 +195,7 @@ function saveRow(){
   }
 }
 
-/* BUILD PREDICTIONS */
+/* BUILD */
 function buildPredictions(){
 
   let avg = data.reduce((a,b)=>a+b,0)/data.length;
@@ -201,7 +209,7 @@ function buildPredictions(){
     let drift = trend * 0.05;
     let noise = (Math.random()-0.5) * vol;
 
-    base = base + drift + noise;
+    base += drift + noise;
 
     if(base < 1) base = 1 + Math.random();
 
@@ -256,8 +264,6 @@ function generate(){
 
 /* RESET */
 function resetSession(){
-
-  playPowerSound("off");
 
   data = [];
   index = 0;
