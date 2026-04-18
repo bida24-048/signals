@@ -143,14 +143,31 @@ function createRow(){
   row.className = "row";
 
   row.innerHTML = `
-    <input id="time_${index}" placeholder="HH:MM">
+    <input id="time_${index}" placeholder="HH:MM" maxlength="5">
     <input id="spike_${index}" placeholder="Spike">
   `;
 
   table.appendChild(row);
 
+  let timeBox = document.getElementById(`time_${index}`);
   let spikeBox = document.getElementById(`spike_${index}`);
 
+  /* AUTO FORMAT TIME */
+  timeBox.addEventListener("input", ()=>{
+    let v = timeBox.value.replace(/[^0-9]/g, "");
+
+    if(v.length >= 3){
+      v = v.slice(0,2) + ":" + v.slice(2,4);
+    }
+
+    timeBox.value = v;
+
+    if(v.length === 5){
+      spikeBox.focus();
+    }
+  });
+
+  /* SAVE ON ENTER */
   spikeBox.addEventListener("keydown", e=>{
     if(e.key==="Enter") saveRow();
   });
@@ -182,33 +199,22 @@ function buildPredictions(){
   let values = data.map(d=>d.spike);
 
   let avg = values.reduce((a,b)=>a+b,0)/values.length;
-
-  // trend detection
   let trend = values[values.length-1] - values[0];
-
-  // volatility
   let vol = values.reduce((a,b)=>a+Math.abs(b-avg),0)/values.length;
 
   predictions = [];
-
   let base = avg;
 
   for(let i=0;i<MIN_SIGNALS;i++){
-
-    // smoother progression
     let drift = trend * 0.05;
-
-    // controlled randomness
     let noise = (Math.random()-0.5) * vol;
 
     base = base + drift + noise;
 
-    // clamp ranges
     if(base < 1) base = 1 + Math.random();
     if(base > 10) base = 8 + Math.random()*5;
 
     let val = base;
-
     let cls = val<2?"low":val<5?"med":"high";
 
     predictions.push({
@@ -244,7 +250,6 @@ function generate(){
   }
 
   let p = predictions[predIndex];
-
   let circle = document.getElementById("circle");
 
   circle.className = p.class;
